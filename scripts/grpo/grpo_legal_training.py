@@ -3,11 +3,15 @@
 GRPO Training for Legal Reasoning Improvement
 Train on checkpoint-500 (500-step SFT) with legal reasoning rewards
 """
+import os
+# Disable bitsandbytes (we use full precision)
+os.environ["BITSANDBYTES_NOWELCOME"] = "1"
+os.environ["DISABLE_BITSANDBYTES_AUTO_INSTALL"] = "1"
+
 import torch
 from unsloth import FastLanguageModel, is_bfloat16_supported
 from trl import GRPOConfig, GRPOTrainer
 from datasets import load_dataset
-import os
 
 print("=" * 60)
 print("GRPO Legal Reasoning Training")
@@ -257,6 +261,8 @@ grpo_config = GRPOConfig(
     save_steps=100,
     # GRPO-specific
     num_generations=4,  # Generate 4 responses per prompt
+    # Optimizer settings - disable bitsandbytes, use standard AdamW
+    optim="adamw_torch",  # Use standard PyTorch AdamW (not 8-bit)
     # Note: reward_fn goes in GRPOTrainer, NOT GRPOConfig
 )
 
