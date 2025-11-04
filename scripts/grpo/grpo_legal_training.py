@@ -36,24 +36,35 @@ model, tokenizer = FastLanguageModel.from_pretrained(
 
 # Load LoRA adapters from checkpoint-500
 print(f"   Loading LoRA adapters from {CHECKPOINT_PATH}...")
+checkpoint_loaded = False
 try:
     from peft import PeftModel
-    model = PeftModel.from_pretrained(model, CHECKPOINT_PATH)
-    print("   ✅ Loaded checkpoint-500 LoRA adapters")
+    import os
+    if os.path.exists(CHECKPOINT_PATH):
+        model = PeftModel.from_pretrained(model, CHECKPOINT_PATH)
+        print("   ✅ Loaded checkpoint-500 LoRA adapters")
+        checkpoint_loaded = True
+    else:
+        print(f"   ⚠️  Checkpoint not found at {CHECKPOINT_PATH}")
+        print("   Starting fresh GRPO training")
 except Exception as e:
     print(f"   ⚠️  Could not load checkpoint: {e}")
     print("   Starting fresh GRPO training")
 
-# Add LoRA (if not already added)
-model = FastLanguageModel.get_peft_model(
-    model,
-    r=16,
-    target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
-    lora_alpha=16,
-    lora_dropout=0,
-    bias="none",
-    use_gradient_checkpointing=True,
-)
+# Add LoRA (only if checkpoint not loaded)
+if not checkpoint_loaded:
+    print("   Adding new LoRA adapters...")
+    model = FastLanguageModel.get_peft_model(
+        model,
+        r=16,
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
+        lora_alpha=16,
+        lora_dropout=0,
+        bias="none",
+        use_gradient_checkpointing=True,
+    )
+else:
+    print("   Using LoRA adapters from checkpoint-500")
 
 print("✅ Model loaded")
 
