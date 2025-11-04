@@ -283,12 +283,13 @@ def grpo_reward_fn(prompts, responses, **kwargs):
 
 # GRPO Trainer
 print("\n4. Starting GRPO training...")
+# Unsloth expects reward_funcs (plural) not reward_fn
 trainer = GRPOTrainer(
     model=model,
     args=grpo_config,
     train_dataset=grpo_dataset["train"],
     tokenizer=tokenizer,
-    reward_fn=grpo_reward_fn,  # Reward function goes here
+    reward_funcs=grpo_reward_fn,  # Unsloth uses reward_funcs (plural)
 )
 
 print(f"   Training for {grpo_config.max_steps} steps...")
