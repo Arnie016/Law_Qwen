@@ -108,7 +108,8 @@ training_args = TrainingArguments(
     logging_steps=10,
     save_steps=50,
     warmup_steps=50,
-    max_steps=10000,  # IMPORTANT: Increase from 500 to 10,000+ for improvement
+    max_steps=10000,  # IMPORTANT: Increased from 500 to 10,000 for improvement
+    save_steps=500,  # Save checkpoint every 500 steps (10 checkpoints total)
     ddp_find_unused_parameters=False,
     gradient_checkpointing=True,  # Saves memory
     # Single GPU optimizations
