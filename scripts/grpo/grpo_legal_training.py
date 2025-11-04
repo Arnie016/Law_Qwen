@@ -261,37 +261,56 @@ grpo_config = GRPOConfig(
 )
 
 # Reward function wrapper (GRPO will call with responses and prompts)
-def grpo_reward_fn(prompts=None, responses=None, inputs=None, completions=None, **kwargs):
+def grpo_reward_fn(*args, **kwargs):
     """
     GRPO reward function - called automatically by GRPOTrainer
-    Handles different calling conventions from Unsloth
+    Handles any calling convention from Unsloth (positional, keyword, or mixed)
     
-    Args:
-        prompts: List of prompt strings (if passed as positional arg)
-        responses: List of response strings (if passed as positional arg)
-        inputs: List of prompt strings (alternative name)
-        completions: List of response strings (alternative name)
-        **kwargs: Additional arguments from GRPO
-    Returns:
-        rewards: List of reward floats
+    Unsloth may call it as:
+    - reward_func(prompts, responses)
+    - reward_func(inputs, completions)
+    - reward_func(prompts=..., responses=...)
+    - reward_func(inputs=..., completions=...)
     """
-    # Handle different calling conventions
-    if prompts is None:
-        prompts = inputs if inputs is not None else kwargs.get('prompts', [])
-    if responses is None:
-        responses = completions if completions is not None else kwargs.get('responses', [])
+    # Extract prompts/inputs from args or kwargs
+    prompts = None
+    responses = None
     
-    # If still None, try positional args
-    if not prompts and not responses:
-        # Try to extract from kwargs
-        prompts = kwargs.get('prompts', kwargs.get('inputs', []))
-        responses = kwargs.get('responses', kwargs.get('completions', []))
+    # Try positional args first
+    if len(args) >= 1:
+        prompts = args[0]
+    if len(args) >= 2:
+        responses = args[1]
+    
+    # Try kwargs (handle both naming conventions)
+    if prompts is None:
+        prompts = kwargs.get('prompts') or kwargs.get('inputs') or kwargs.get('original_prompts')
+    if responses is None:
+        responses = kwargs.get('responses') or kwargs.get('completions')
+    
+    # Fallback: if still None, try args[0] and args[1] again
+    if prompts is None and len(args) > 0:
+        prompts = args[0]
+    if responses is None and len(args) > 1:
+        responses = args[1]
     
     # Ensure we have lists
+    if prompts is None:
+        prompts = []
+    if responses is None:
+        responses = []
+    
     if not isinstance(prompts, list):
         prompts = [prompts] if prompts else []
     if not isinstance(responses, list):
         responses = [responses] if responses else []
+    
+    # Safety check: must have same length
+    if len(prompts) != len(responses):
+        # If lengths don't match, try to pair them properly
+        min_len = min(len(prompts), len(responses))
+        prompts = prompts[:min_len]
+        responses = responses[:min_len]
     
     rewards = []
     for prompt, response in zip(prompts, responses):
