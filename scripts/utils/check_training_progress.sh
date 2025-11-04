@@ -1,49 +1,72 @@
 #!/bin/bash
-# Check training progress - Quick commands
+# Check Training Progress on Server
 
-echo "=" * 60
-echo "TRAINING PROGRESS CHECK"
-echo "=" * 60
-
-# Check latest checkpoint
+echo "=========================================="
+echo "CHECKING TRAINING PROGRESS"
+echo "=========================================="
 echo ""
-echo "📁 Latest Checkpoint:"
-ls -d /qwen2.5-32b-law-finetuned/checkpoint-* 2>/dev/null | sort -V | tail -1
 
-# Check all checkpoints
-echo ""
-echo "📊 All Checkpoints:"
-ls -d /qwen2.5-32b-law-finetuned/checkpoint-* 2>/dev/null | sort -V | tail -5
+# Check server 129.212.184.211 (new ROCm droplet)
+SERVER="129.212.184.211"
+echo "🔍 Checking server: $SERVER"
+echo "----------------------------------------"
 
-# Check checkpoint size
-echo ""
-echo "💾 Checkpoint Size:"
-LATEST=$(ls -d /qwen2.5-32b-law-finetuned/checkpoint-* 2>/dev/null | sort -V | tail -1)
-if [ ! -z "$LATEST" ]; then
-    du -sh "$LATEST"
-fi
+ssh -o ConnectTimeout=10 root@$SERVER 2>/dev/null << 'SSH_EOF' || {
+    echo "❌ Cannot connect to $SERVER"
+    echo "💡 Try: ssh root@$SERVER"
+    exit 1
+}
 
-# Check training logs (if saved)
+echo "✅ Connected"
 echo ""
-echo "📝 Training Logs:"
-if [ -f "/qwen2.5-32b-law-finetuned/training.log" ]; then
-    tail -20 /qwen2.5-32b-law-finetuned/training.log
+
+# Check Docker container
+if docker ps -a | grep -q rocm; then
+    echo "🐳 Docker container found"
+    echo ""
+    
+    # Check processes
+    echo "📊 Training processes:"
+    docker exec rocm ps aux | grep -E "(python|training|grpo)" | grep -v grep || echo "  None found"
+    echo ""
+    
+    # Check checkpoints
+    echo "💾 Checkpoints:"
+    docker exec rocm bash -c "ls -lh /root/qwen2.5-32b-law-*/checkpoint-*/ 2>/dev/null | tail -5" || \
+    docker exec rocm bash -c "ls -lh /root/qwen2.5-32b-law-grpo/checkpoint-*/ 2>/dev/null | tail -5" || \
+    echo "  None found"
+    echo ""
+    
+    # Check GPU
+    echo "🎮 GPU Status:"
+    docker exec rocm python3 << 'PYEOF' 2>/dev/null || echo "  Cannot check"
+import torch
+if torch.cuda.is_available():
+    print(f"  GPU: {torch.cuda.get_device_name(0)}")
+    print(f"  Memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+    print(f"  Allocated: {torch.cuda.memory_allocated(0) / 1e9:.2f} GB")
+else:
+    print("  GPU not available")
+PYEOF
+    echo ""
+    
+    # Check logs
+    echo "📝 Recent logs:"
+    docker exec rocm bash -c "tail -30 /root/qwen2.5-32b-law-grpo/training.log 2>/dev/null || tail -30 /root/training.log 2>/dev/null || echo 'No logs found'"
+    
 else
-    echo "No training.log found"
+    echo "⚠️  No Docker container found"
+    echo ""
+    
+    # Check processes on host
+    ps aux | grep -E "(python|training|grpo)" | grep -v grep || echo "No training processes"
+    echo ""
+    
+    # Check checkpoints
+    ls -lh /root/qwen2.5-32b-law-*/checkpoint-*/ 2>/dev/null | tail -5 || echo "No checkpoints"
 fi
 
-# Check GPU usage
-echo ""
-echo "🎮 GPU Usage:"
-rocm-smi --showuse 2>/dev/null || nvidia-smi 2>/dev/null || echo "GPU info not available"
+SSH_EOF
 
-# Check if training process is running
 echo ""
-echo "🔍 Training Process:"
-ps aux | grep -i "python.*train" | grep -v grep || echo "No training process found"
-
-# Check disk space
-echo ""
-echo "💿 Disk Space:"
-df -h / | tail -1
-
+echo "✅ Check complete!"
