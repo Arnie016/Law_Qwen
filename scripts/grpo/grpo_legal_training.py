@@ -261,15 +261,38 @@ grpo_config = GRPOConfig(
 )
 
 # Reward function wrapper (GRPO will call with responses and prompts)
-def grpo_reward_fn(prompts, responses, **kwargs):
+def grpo_reward_fn(prompts=None, responses=None, inputs=None, completions=None, **kwargs):
     """
     GRPO reward function - called automatically by GRPOTrainer
+    Handles different calling conventions from Unsloth
+    
     Args:
-        prompts: List of prompt strings
-        responses: List of response strings (one per prompt)
+        prompts: List of prompt strings (if passed as positional arg)
+        responses: List of response strings (if passed as positional arg)
+        inputs: List of prompt strings (alternative name)
+        completions: List of response strings (alternative name)
+        **kwargs: Additional arguments from GRPO
     Returns:
         rewards: List of reward floats
     """
+    # Handle different calling conventions
+    if prompts is None:
+        prompts = inputs if inputs is not None else kwargs.get('prompts', [])
+    if responses is None:
+        responses = completions if completions is not None else kwargs.get('responses', [])
+    
+    # If still None, try positional args
+    if not prompts and not responses:
+        # Try to extract from kwargs
+        prompts = kwargs.get('prompts', kwargs.get('inputs', []))
+        responses = kwargs.get('responses', kwargs.get('completions', []))
+    
+    # Ensure we have lists
+    if not isinstance(prompts, list):
+        prompts = [prompts] if prompts else []
+    if not isinstance(responses, list):
+        responses = [responses] if responses else []
+    
     rewards = []
     for prompt, response in zip(prompts, responses):
         # Extract question from prompt
@@ -283,13 +306,13 @@ def grpo_reward_fn(prompts, responses, **kwargs):
 
 # GRPO Trainer
 print("\n4. Starting GRPO training...")
-# Unsloth expects reward_funcs (plural) not reward_fn
+# Unsloth expects reward_funcs (plural) as a LIST of functions
 trainer = GRPOTrainer(
     model=model,
     args=grpo_config,
     train_dataset=grpo_dataset["train"],
     tokenizer=tokenizer,
-    reward_funcs=grpo_reward_fn,  # Unsloth uses reward_funcs (plural)
+    reward_funcs=[grpo_reward_fn],  # Must be a list, even if single function
 )
 
 print(f"   Training for {grpo_config.max_steps} steps...")
