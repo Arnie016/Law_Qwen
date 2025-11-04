@@ -2,6 +2,14 @@
 
 Fine-tuning Qwen 2.5 32B on legal datasets using 8x AMD MI300X GPUs (1.5TB HBM).
 
+## 📋 **START HERE: Project Summary**
+
+**👉 Read first:** [`docs/PROJECT_SUMMARY.md`](docs/PROJECT_SUMMARY.md)
+
+Complete summary of what was achieved, what didn't work, why, and how to improve it. Essential for continuing this work.
+
+**TL;DR:** Fine-tuning didn't improve legal reasoning (500 steps insufficient). Need 10,000+ steps and better dataset (LegalBench recommended).
+
 ## 📁 Repository Structure
 
 ```
