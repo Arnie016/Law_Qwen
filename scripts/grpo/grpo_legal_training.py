@@ -153,11 +153,29 @@ grpo_config = GRPOConfig(
     save_steps=100,
     # GRPO-specific
     num_generations=4,  # Generate 4 responses per prompt
-    reward_fn=lambda response, prompt: legal_reward_function(
-        response, 
-        prompt.split("<|im_start|>user\n")[-1].split("<|im_end|>")[0]
-    ),
+    # Note: reward_fn goes in GRPOTrainer, not GRPOConfig
 )
+
+# Reward function wrapper (GRPO will call with responses and prompts)
+def grpo_reward_fn(prompts, responses, **kwargs):
+    """
+    GRPO reward function - called automatically by GRPOTrainer
+    Args:
+        prompts: List of prompt strings
+        responses: List of response strings (one per prompt)
+    Returns:
+        rewards: List of reward floats
+    """
+    rewards = []
+    for prompt, response in zip(prompts, responses):
+        # Extract question from prompt
+        try:
+            question = prompt.split("<|im_start|>user\n")[-1].split("<|im_end|>")[0]
+        except:
+            question = prompt  # Fallback if format doesn't match
+        reward = legal_reward_function(response, question)
+        rewards.append(reward)
+    return rewards
 
 # GRPO Trainer
 print("\n4. Starting GRPO training...")
@@ -166,10 +184,7 @@ trainer = GRPOTrainer(
     args=grpo_config,
     train_dataset=grpo_dataset["train"],
     tokenizer=tokenizer,
-    reward_fn=lambda response, prompt: legal_reward_function(
-        response,
-        prompt.split("<|im_start|>user\n")[-1].split("<|im_end|>")[0]
-    ),
+    reward_fn=grpo_reward_fn,  # Reward function goes here
 )
 
 print(f"   Training for {grpo_config.max_steps} steps...")
