@@ -68,49 +68,140 @@ else:
 
 print("✅ Model loaded")
 
-# Legal reasoning reward function
+# Improved legal reasoning reward function
 def legal_reward_function(response, question):
     """
-    Reward function for legal reasoning quality
+    Enhanced reward function for legal reasoning quality
     Higher reward for:
-    - Legal terminology
-    - Structured reasoning
+    - Legal terminology and precision
+    - Structured reasoning (IRAC format)
     - Citation of statutes/cases
-    - Complete answers
+    - Complete, comprehensive answers
+    - Legal analysis depth
     """
+    import re
     reward = 0.0
     
-    # Length check (complete answers)
-    if len(response) > 100:
-        reward += 1.0
-    elif len(response) > 50:
-        reward += 0.5
+    # ===== COMPLETENESS (0-3 points) =====
+    response_len = len(response.strip())
+    if response_len > 500:
+        reward += 3.0  # Comprehensive answer
+    elif response_len > 300:
+        reward += 2.0  # Good length
+    elif response_len > 100:
+        reward += 1.0  # Minimum acceptable
+    elif response_len < 50:
+        reward -= 2.0  # Too short
     
-    # Legal terminology
+    # ===== LEGAL TERMINOLOGY (0-4 points) =====
     legal_terms = [
+        # Core legal concepts
         'statute', 'case', 'court', 'ruling', 'precedent', 'doctrine',
-        'law', 'legal', 'constitutional', 'common law', 'UCC', 'FSIA',
-        'ABA', 'Model Rules', 'negligence', 'liability', 'immunity'
+        'law', 'legal', 'constitutional', 'common law', 'statutory',
+        # Specific legal areas
+        'UCC', 'FSIA', 'ABA', 'Model Rules', 'negligence', 'liability', 
+        'immunity', 'jurisdiction', 'standing', 'causation', 'damages',
+        # Legal procedures
+        'motion', 'pleading', 'discovery', 'settlement', 'appeal',
+        # Legal reasoning
+        'analysis', 'reasoning', 'conclusion', 'holding', 'dicta'
     ]
     found_terms = sum(1 for term in legal_terms if term.lower() in response.lower())
-    reward += found_terms * 0.2
+    reward += min(found_terms * 0.3, 4.0)  # Cap at 4 points
     
-    # Structured reasoning (has paragraphs or lists)
-    if '\n\n' in response or len(response.split('.')) > 3:
+    # ===== STRUCTURED REASONING (0-3 points) =====
+    # Check for IRAC format (Issue, Rule, Application, Conclusion)
+    irac_indicators = ['issue', 'rule', 'application', 'conclusion', 'analysis']
+    irac_count = sum(1 for word in irac_indicators if word.lower() in response.lower())
+    if irac_count >= 3:
+        reward += 3.0  # Well-structured IRAC
+    elif irac_count >= 2:
+        reward += 1.5  # Some structure
+    
+    # Check for paragraphs (structured writing)
+    if response.count('\n\n') >= 2:
+        reward += 1.0  # Well-paragraphed
+    elif '\n\n' in response:
+        reward += 0.5
+    
+    # Check for lists/numbering (organized)
+    if re.search(r'\d+\.\s', response) or re.search(r'[•\-\*]\s', response):
+        reward += 0.5  # Organized with lists
+    
+    # ===== CITATIONS (0-3 points) =====
+    # Statute citations (§, UCC, etc.)
+    statute_patterns = [
+        r'§\s*\d+',           # § 2-205
+        r'UCC\s*§?\s*\d+',    # UCC § 2-205
+        r'\d+-\d+',           # 2-205
+        r'Section\s+\d+',     # Section 205
+    ]
+    has_statute = any(re.search(pattern, response, re.I) for pattern in statute_patterns)
+    if has_statute:
+        reward += 2.0  # Strong citation
+    
+    # Case citations (v., Case, etc.)
+    case_patterns = [
+        r'\w+\s+v\.\s+\w+',   # Smith v. Jones
+        r'Case\s+[A-Z]',       # Case references
+        r'[A-Z][a-z]+\s+v\.', # Case names
+    ]
+    has_case = any(re.search(pattern, response, re.I) for pattern in case_patterns)
+    if has_case:
         reward += 1.0
     
-    # Citation patterns (statutes, cases)
-    import re
-    if re.search(r'§\s*\d+', response) or re.search(r'\d+-\d+', response):
-        reward += 1.0  # Statute citation
-    if re.search(r'v\.', response) or re.search(r'case', response, re.I):
-        reward += 0.5  # Case citation
+    # ===== LEGAL ANALYSIS DEPTH (0-3 points) =====
+    # Check for legal analysis keywords
+    analysis_keywords = [
+        'because', 'therefore', 'however', 'furthermore', 'consequently',
+        'applies', 'distinguished', 'analogous', 'similar', 'different',
+        'requires', 'mandates', 'prohibits', 'allows', 'permits'
+    ]
+    analysis_count = sum(1 for word in analysis_keywords if word.lower() in response.lower())
+    reward += min(analysis_count * 0.2, 3.0)
     
+    # Check for comparative analysis
+    if re.search(r'(compare|distinguish|similar|different)', response, re.I):
+        reward += 1.0  # Comparative analysis
+    
+    # Check for counterarguments
+    if re.search(r'(however|although|despite|nevertheless|but)', response, re.I):
+        reward += 0.5  # Shows nuanced thinking
+    
+    # ===== QUESTION-SPECIFIC REWARDS (0-2 points) =====
+    # Reward for answering the specific question asked
+    question_keywords = re.findall(r'\b\w+\b', question.lower())
+    question_keywords = [w for w in question_keywords if len(w) > 4]  # Substantive words
+    matched_keywords = sum(1 for kw in question_keywords if kw in response.lower())
+    if matched_keywords >= 3:
+        reward += 2.0  # Addresses question well
+    elif matched_keywords >= 1:
+        reward += 1.0
+    
+    # ===== PENALTIES =====
     # Penalize very short or non-legal responses
-    if len(response) < 20:
+    if response_len < 20:
+        reward -= 3.0  # Too short
+    
+    # Penalize if no legal terminology at all
+    if found_terms == 0:
         reward -= 1.0
-    if 'legal' not in response.lower() and 'law' not in response.lower():
-        reward -= 0.5
+    
+    # Penalize generic responses
+    generic_phrases = ['i think', 'i believe', 'maybe', 'probably', 'i guess']
+    if sum(1 for phrase in generic_phrases if phrase in response.lower()) > 2:
+        reward -= 1.0  # Too generic
+    
+    # Penalize repetitive responses
+    words = response.lower().split()
+    if len(words) > 0:
+        unique_ratio = len(set(words)) / len(words)
+        if unique_ratio < 0.5:
+            reward -= 1.0  # Too repetitive
+    
+    # ===== NORMALIZE REWARD =====
+    # Cap reward between -5 and +20 (reasonable range)
+    reward = max(-5.0, min(20.0, reward))
     
     return reward
 
@@ -150,10 +241,12 @@ grpo_dataset = dataset.map(format_grpo, batched=True)
 
 # GRPO Configuration
 print("\n3. Setting up GRPO config...")
+# Note: per_device_train_batch_size must be multiple of num_generations
+# Unsloth will auto-adjust batch_size=2 to batch_size=4 (multiple of num_generations=4)
 grpo_config = GRPOConfig(
     output_dir="./qwen2.5-32b-law-grpo",
-    per_device_train_batch_size=2,
-    gradient_accumulation_steps=4,
+    per_device_train_batch_size=4,  # Must be multiple of num_generations (4)
+    gradient_accumulation_steps=2,  # Reduced to compensate
     learning_rate=2e-4,
     num_train_epochs=1,
     max_steps=1000,  # Fast RL training: 500-1000 steps
@@ -164,7 +257,7 @@ grpo_config = GRPOConfig(
     save_steps=100,
     # GRPO-specific
     num_generations=4,  # Generate 4 responses per prompt
-    # Note: reward_fn goes in GRPOTrainer, not GRPOConfig
+    # Note: reward_fn goes in GRPOTrainer, NOT GRPOConfig
 )
 
 # Reward function wrapper (GRPO will call with responses and prompts)
