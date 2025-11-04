@@ -5,7 +5,7 @@ Train on checkpoint-500 (500-step SFT) with legal reasoning rewards
 """
 import torch
 from unsloth import FastLanguageModel, is_bfloat16_supported
-from unsloth import GRPOConfig, GRPOTrainer
+from trl import GRPOConfig, GRPOTrainer
 from datasets import load_dataset
 import os
 
