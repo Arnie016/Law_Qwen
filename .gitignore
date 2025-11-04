@@ -13,13 +13,16 @@ ENV/
 .ipynb_checkpoints/
 *.ipynb_checkpoints
 
-# Model checkpoints (too large)
+# Model checkpoints (allow in models/checkpoints, tracked with Git LFS)
 *.pt
+!models/checkpoints/**/*.pt
 *.bin
+!models/checkpoints/**/*.bin
 *.safetensors
+!models/checkpoints/**/*.safetensors
 checkpoint-*/
+!models/checkpoints/checkpoint-*/
 outputs/
-models/
 *.gguf
 
 # Data

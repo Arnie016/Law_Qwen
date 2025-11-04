@@ -1,0 +1,19 @@
+modules:
+  jira:page:
+    - key: ai-sprint-assistant-page
+      function: main
+      title: AI Sprint Assistant
+      resources:
+        - jira:page
+        - jira:sprint
+permissions:
+  scopes:
+    - read:jira-work
+    - write:jira-work
+    - read:board-scope:jira-software
+app:
+  id: ari:cloud:ecosystem::app/YOUR_APP_ID
+  runtime:
+    name: Node.js 18.x
+
+
